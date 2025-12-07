@@ -11,5 +11,31 @@
         "C9B75CA8F423485DD6E387EB9A135B4FB824A4AEE5569C5856E6E6AE73C4BB78"
       ]
     }
+  },
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.sven4321.energypricegermany",
+      "sha256_cert_fingerprints": [
+        "C9B75CA8F423485DD6E387EB9A135B4FB824A4AEE5569C5856E6E6AE73C4BB78"
+      ]
+    }
+  },
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.sven4321.eisenhauer",
+      "sha256_cert_fingerprints": [
+        "76D696798A94C19F7C8F6B69BEEAC02495780790ECC1CEEDD016713445A05788"
+      ]
+    }
   }
 ]
