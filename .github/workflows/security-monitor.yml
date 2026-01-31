@@ -29,7 +29,7 @@ jobs:
           repository: S540d/${{ matrix.repo }}
           ref: gh-pages
           token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 1
+          fetch-depth: 0  # Full history for git history scan
         continue-on-error: true
 
       - name: Scan for sensitive files
@@ -76,52 +76,181 @@ jobs:
             echo -e "$FOUND_FILES" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
             echo "❌ Sensitive files found in ${{ matrix.repo }}!"
-            exit 1
           else
             echo "issue_needed=false" >> $GITHUB_OUTPUT
             echo "✅ No sensitive files found in ${{ matrix.repo }}"
           fi
 
-      - name: Create Issue if sensitive files found
-        if: failure() && steps.scan.outputs.issue_needed == 'true'
+      - name: Check file sizes (>10MB warning)
+        id: filesize
+        run: |
+          echo "Checking for large files (>10MB)..."
+
+          LARGE_FILES=$(find . -type f -size +10M 2>/dev/null | grep -v ".git/" || true)
+
+          if [ -n "$LARGE_FILES" ]; then
+            echo "⚠️ Large files found:"
+            echo "$LARGE_FILES"
+            echo "large_files<<EOF" >> $GITHUB_OUTPUT
+            echo "$LARGE_FILES" | while read file; do
+              size=$(du -h "$file" | cut -f1)
+              echo "- $file ($size)"
+            done >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "has_large_files=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ No large files found"
+            echo "has_large_files=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Scan Git history for sensitive files
+        id: history
+        run: |
+          echo "Scanning Git history for deleted sensitive files..."
+
+          SENSITIVE_IN_HISTORY=$(git log --all --pretty=format: --name-only --diff-filter=D | \
+            grep -E '(credentials\.json|\.env|\.jks|node_modules/)' | \
+            sort -u | head -20 || true)
+
+          if [ -n "$SENSITIVE_IN_HISTORY" ]; then
+            echo "⚠️ Sensitive files found in Git history (deleted but still in commits):"
+            echo "$SENSITIVE_IN_HISTORY"
+            echo "history_files<<EOF" >> $GITHUB_OUTPUT
+            echo "$SENSITIVE_IN_HISTORY" | while read file; do
+              echo "- $file"
+            done >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "has_history_files=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ No sensitive files in Git history"
+            echo "has_history_files=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check HTTPS/SSL configuration
+        id: https
+        run: |
+          echo "Checking HTTPS/SSL configuration..."
+
+          REPO_URL="https://s540d.github.io/${{ matrix.repo }}/"
+
+          # Check if HTTPS is accessible
+          if curl -s -o /dev/null -w "%{http_code}" "$REPO_URL" | grep -q "200"; then
+            echo "✅ HTTPS is accessible: $REPO_URL"
+            echo "https_ok=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ HTTPS check failed for $REPO_URL"
+            echo "https_ok=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Check SSL certificate
+          if echo | openssl s_client -connect s540d.github.io:443 -servername s540d.github.io 2>/dev/null | \
+             openssl x509 -noout -dates | grep -q "notAfter"; then
+            EXPIRY=$(echo | openssl s_client -connect s540d.github.io:443 -servername s540d.github.io 2>/dev/null | \
+                     openssl x509 -noout -dates | grep "notAfter" | cut -d= -f2)
+            echo "✅ SSL certificate valid until: $EXPIRY"
+            echo "ssl_expiry=$EXPIRY" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Scan for external scripts/CDN links
+        id: external
+        run: |
+          echo "Scanning HTML files for external scripts..."
+
+          EXTERNAL_SCRIPTS=$(find . -name "*.html" -type f 2>/dev/null | \
+            xargs grep -h -E '<script[^>]*src=' 2>/dev/null | \
+            grep -v "s540d.github.io" | \
+            grep -E 'http[s]?://' | \
+            sed 's/.*src="\([^"]*\)".*/\1/' | \
+            sort -u | head -20 || true)
+
+          if [ -n "$EXTERNAL_SCRIPTS" ]; then
+            echo "📋 External scripts found:"
+            echo "$EXTERNAL_SCRIPTS"
+            echo "external_scripts<<EOF" >> $GITHUB_OUTPUT
+            echo "$EXTERNAL_SCRIPTS" | while read script; do
+              echo "- $script"
+            done >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "has_external_scripts=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ No external scripts found"
+            echo "has_external_scripts=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine if issue is needed
+        id: final
+        run: |
+          ISSUE_NEEDED=false
+
+          if [ "${{ steps.scan.outputs.issue_needed }}" == "true" ]; then
+            ISSUE_NEEDED=true
+          fi
+
+          if [ "${{ steps.filesize.outputs.has_large_files }}" == "true" ]; then
+            ISSUE_NEEDED=true
+          fi
+
+          if [ "${{ steps.history.outputs.has_history_files }}" == "true" ]; then
+            ISSUE_NEEDED=true
+          fi
+
+          if [ "${{ steps.https.outputs.https_ok }}" == "false" ]; then
+            ISSUE_NEEDED=true
+          fi
+
+          echo "issue_needed=$ISSUE_NEEDED" >> $GITHUB_OUTPUT
+
+          if [ "$ISSUE_NEEDED" == "true" ]; then
+            echo "❌ Security issues detected!"
+            exit 1
+          else
+            echo "✅ All checks passed!"
+          fi
+
+      - name: Create Issue if problems found
+        if: failure() && steps.final.outputs.issue_needed == 'true'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const repo = '${{ matrix.repo }}';
-            const foundFiles = `${{ steps.scan.outputs.found_files }}`;
 
-            const issueTitle = `🚨 Security Alert: Sensitive files on gh-pages in ${repo}`;
-            const issueBody = `
-            ## Security Alert: Sensitive Files Detected
+            let issueBody = `## 🔒 Security Scan Results\n\n**Repository:** ${repo}\n**Branch:** gh-pages\n**Scan Date:** ${new Date().toISOString()}\n\n`;
 
-            **Repository:** ${repo}
-            **Branch:** gh-pages
-            **Scan Date:** ${new Date().toISOString()}
+            // Sensitive files
+            if ('${{ steps.scan.outputs.issue_needed }}' === 'true') {
+              issueBody += `### ⚠️ Sensitive Files Found\n\n$\{{ steps.scan.outputs.found_files }}\n\n`;
+              issueBody += `**Action:** Remove these files from gh-pages branch\n\n`;
+            }
 
-            ### Files Found:
-            ${foundFiles}
+            // Large files
+            if ('${{ steps.filesize.outputs.has_large_files }}' === 'true') {
+              issueBody += `### 📦 Large Files (>10MB)\n\n$\{{ steps.filesize.outputs.large_files }}\n\n`;
+              issueBody += `**Action:** Consider removing or optimizing large files\n\n`;
+            }
 
-            ### Action Required:
-            1. Review the files listed above
-            2. Remove sensitive files from gh-pages branch
-            3. Run cleanup script: \`./scripts/cleanup-gh-pages.sh\`
-            4. Verify deployment workflows include automatic cleanup
+            // Git history
+            if ('${{ steps.history.outputs.has_history_files }}' === 'true') {
+              issueBody += `### 📜 Sensitive Files in Git History\n\n$\{{ steps.history.outputs.history_files }}\n\n`;
+              issueBody += `**Warning:** These files were deleted but still exist in Git history. Consider using \`git filter-branch\` or BFG Repo-Cleaner to remove them permanently.\n\n`;
+            }
 
-            ### Commands:
-            \`\`\`bash
-            cd /path/to/${repo}
-            git checkout gh-pages
-            git pull origin gh-pages
-            ./scripts/cleanup-gh-pages.sh
-            \`\`\`
+            // HTTPS check
+            if ('${{ steps.https.outputs.https_ok }}' === 'false') {
+              issueBody += `### 🔐 HTTPS Issue\n\n`;
+              issueBody += `HTTPS is not accessible for this repository. Check GitHub Pages settings.\n\n`;
+            }
 
-            ### Prevention:
-            Ensure your deployment workflows include the cleanup step to prevent this in the future.
+            // External scripts (informational)
+            if ('${{ steps.external.outputs.has_external_scripts }}' === 'true') {
+              issueBody += `### 🌐 External Scripts Detected (Informational)\n\n$\{{ steps.external.outputs.external_scripts }}\n\n`;
+              issueBody += `**Note:** External scripts are not necessarily a security risk, but review them to ensure they're from trusted sources.\n\n`;
+            }
 
-            ---
-            🤖 This issue was automatically created by the Security Monitor workflow.
-            `;
+            issueBody += `### 🛠️ Quick Fix\n\n\`\`\`bash\ncd /path/to/${repo}\ngit checkout gh-pages\n./scripts/cleanup-gh-pages.sh\ngit push origin gh-pages\n\`\`\`\n\n`;
+            issueBody += `---\n🤖 Auto-generated by Security Monitor`;
+
+            const issueTitle = `🚨 Security Scan Issues: ${repo}`;
 
             // Check if similar issue already exists (open)
             const issues = await github.rest.issues.listForRepo({
