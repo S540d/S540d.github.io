@@ -20,6 +20,7 @@ jobs:
           - 1x1_Trainer
           - Energy_Price_Germany
           - Eisenhauer
+          - Pflanzkalender
           # Add more repos here as needed
 
     steps:
@@ -313,3 +314,4 @@ jobs:
           echo "- 1x1_Trainer" >> $GITHUB_STEP_SUMMARY
           echo "- Energy_Price_Germany" >> $GITHUB_STEP_SUMMARY
           echo "- Eisenhauer" >> $GITHUB_STEP_SUMMARY
+          echo "- Pflanzkalender" >> $GITHUB_STEP_SUMMARY
