@@ -1,0 +1,186 @@
+name: Security Monitor - Scan all gh-pages branches
+
+on:
+  schedule:
+    # Run every Monday at 9:00 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  scan-repositories:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        repo:
+          - 1x1_Trainer
+          - Energy_Price_Germany
+          - Eisenhauer
+          # Add more repos here as needed
+
+    steps:
+      - name: Checkout ${{ matrix.repo }} gh-pages
+        uses: actions/checkout@v4
+        with:
+          repository: S540d/${{ matrix.repo }}
+          ref: gh-pages
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 1
+        continue-on-error: true
+
+      - name: Scan for sensitive files
+        id: scan
+        run: |
+          echo "Scanning ${{ matrix.repo }} for sensitive files..."
+
+          # List of sensitive files/directories to check
+          SENSITIVE_PATTERNS=(
+            "node_modules/"
+            "credentials.json"
+            ".env"
+            ".env.local"
+            ".env.production"
+            ".env.staging"
+            ".env.testing"
+            "*.jks"
+            ".vscode/"
+            ".husky/"
+            "coverage/"
+            ".expo/"
+            ".templates/"
+            ".venv/"
+            "Keystore/"
+            "Android_old/"
+            "Playstore_apps/"
+          )
+
+          FOUND_FILES=""
+          ISSUE_NEEDED=false
+
+          for pattern in "${SENSITIVE_PATTERNS[@]}"; do
+            # Check if files/directories exist
+            if ls -d $pattern 2>/dev/null | grep -q .; then
+              echo "⚠️ FOUND: $pattern"
+              FOUND_FILES="$FOUND_FILES\n- $pattern"
+              ISSUE_NEEDED=true
+            fi
+          done
+
+          if [ "$ISSUE_NEEDED" = true ]; then
+            echo "issue_needed=true" >> $GITHUB_OUTPUT
+            echo "found_files<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$FOUND_FILES" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "❌ Sensitive files found in ${{ matrix.repo }}!"
+            exit 1
+          else
+            echo "issue_needed=false" >> $GITHUB_OUTPUT
+            echo "✅ No sensitive files found in ${{ matrix.repo }}"
+          fi
+
+      - name: Create Issue if sensitive files found
+        if: failure() && steps.scan.outputs.issue_needed == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const repo = '${{ matrix.repo }}';
+            const foundFiles = `${{ steps.scan.outputs.found_files }}`;
+
+            const issueTitle = `🚨 Security Alert: Sensitive files on gh-pages in ${repo}`;
+            const issueBody = `
+            ## Security Alert: Sensitive Files Detected
+
+            **Repository:** ${repo}
+            **Branch:** gh-pages
+            **Scan Date:** ${new Date().toISOString()}
+
+            ### Files Found:
+            ${foundFiles}
+
+            ### Action Required:
+            1. Review the files listed above
+            2. Remove sensitive files from gh-pages branch
+            3. Run cleanup script: \`./scripts/cleanup-gh-pages.sh\`
+            4. Verify deployment workflows include automatic cleanup
+
+            ### Commands:
+            \`\`\`bash
+            cd /path/to/${repo}
+            git checkout gh-pages
+            git pull origin gh-pages
+            ./scripts/cleanup-gh-pages.sh
+            \`\`\`
+
+            ### Prevention:
+            Ensure your deployment workflows include the cleanup step to prevent this in the future.
+
+            ---
+            🤖 This issue was automatically created by the Security Monitor workflow.
+            `;
+
+            // Check if similar issue already exists (open)
+            const issues = await github.rest.issues.listForRepo({
+              owner: 'S540d',
+              repo: 'S540d.github.io',
+              state: 'open',
+              labels: ['security', 'gh-pages']
+            });
+
+            const existingIssue = issues.data.find(issue =>
+              issue.title.includes(repo) && issue.title.includes('Sensitive files')
+            );
+
+            if (!existingIssue) {
+              // Create new issue
+              await github.rest.issues.create({
+                owner: 'S540d',
+                repo: 'S540d.github.io',
+                title: issueTitle,
+                body: issueBody,
+                labels: ['security', 'gh-pages', 'automated']
+              });
+              console.log(`✅ Created security issue for ${repo}`);
+            } else {
+              // Update existing issue
+              await github.rest.issues.createComment({
+                owner: 'S540d',
+                repo: 'S540d.github.io',
+                issue_number: existingIssue.number,
+                body: `🔄 **Update:** Sensitive files still present as of ${new Date().toISOString()}\n\n${foundFiles}`
+              });
+              console.log(`✅ Updated existing security issue #${existingIssue.number} for ${repo}`);
+            }
+
+  summary:
+    runs-on: ubuntu-latest
+    needs: scan-repositories
+    if: always()
+
+    steps:
+      - name: Generate Summary
+        run: |
+          echo "## 🔒 Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Scan Date:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.scan-repositories.result }}" == "success" ]; then
+            echo "✅ **All repositories are clean!**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "No sensitive files found on any gh-pages branch." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ **Security issues detected!**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Check the job logs and created issues for details." >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Scanned Repositories:" >> $GITHUB_STEP_SUMMARY
+          echo "- 1x1_Trainer" >> $GITHUB_STEP_SUMMARY
+          echo "- Energy_Price_Germany" >> $GITHUB_STEP_SUMMARY
+          echo "- Eisenhauer" >> $GITHUB_STEP_SUMMARY
