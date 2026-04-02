@@ -216,16 +216,16 @@ jobs:
           script: |
             const repo = '${{ matrix.repo }}';
 
-            // Extract step outputs into JS variables to avoid ${{}} vs ${} template literal conflicts
-            const scanNeeded = '${{ steps.scan.outputs.issue_needed }}';
-            const foundFiles = `${{ steps.scan.outputs.found_files }}`;
-            const hasLargeFiles = '${{ steps.filesize.outputs.has_large_files }}';
-            const largeFiles = `${{ steps.filesize.outputs.large_files }}`;
-            const hasHistoryFiles = '${{ steps.history.outputs.has_history_files }}';
-            const historyFiles = `${{ steps.history.outputs.history_files }}`;
-            const httpsOk = '${{ steps.https.outputs.https_ok }}';
-            const hasExternalScripts = '${{ steps.external.outputs.has_external_scripts }}';
-            const externalScripts = `${{ steps.external.outputs.external_scripts }}`;
+            // Use toJSON() to safely escape step outputs for JS string assignment
+            const scanNeeded = ${{ toJSON(steps.scan.outputs.issue_needed) }};
+            const foundFiles = ${{ toJSON(steps.scan.outputs.found_files) }};
+            const hasLargeFiles = ${{ toJSON(steps.filesize.outputs.has_large_files) }};
+            const largeFiles = ${{ toJSON(steps.filesize.outputs.large_files) }};
+            const hasHistoryFiles = ${{ toJSON(steps.history.outputs.has_history_files) }};
+            const historyFiles = ${{ toJSON(steps.history.outputs.history_files) }};
+            const httpsOk = ${{ toJSON(steps.https.outputs.https_ok) }};
+            const hasExternalScripts = ${{ toJSON(steps.external.outputs.has_external_scripts) }};
+            const externalScripts = ${{ toJSON(steps.external.outputs.external_scripts) }};
 
             let issueBody = `## 🔒 Security Scan Results\n\n**Repository:** ${repo}\n**Branch:** gh-pages\n**Scan Date:** ${new Date().toISOString()}\n\n`;
 
@@ -264,12 +264,12 @@ jobs:
 
             const issueTitle = `🚨 Security Scan Issues: ${repo}`;
 
-            // Check if similar issue already exists (open)
+            // Check if similar issue already exists (open) - search broadly to avoid duplicates
             const issues = await github.rest.issues.listForRepo({
               owner: 'S540d',
               repo: 'S540d.github.io',
               state: 'open',
-              labels: ['security', 'gh-pages', 'automated']
+              labels: ['security']
             });
 
             const existingIssue = issues.data.find(issue =>
@@ -292,7 +292,7 @@ jobs:
                 owner: 'S540d',
                 repo: 'S540d.github.io',
                 issue_number: existingIssue.number,
-                body: `🔄 **Update:** Sensitive files still present as of ${new Date().toISOString()}\n\n${issueBody}`
+                body: `🔄 **Update:** Security scan still reports issues as of ${new Date().toISOString()}\n\n${issueBody}`
               });
               console.log(`✅ Updated existing security issue #${existingIssue.number} for ${repo}`);
             }
