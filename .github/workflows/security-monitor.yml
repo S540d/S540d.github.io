@@ -216,35 +216,46 @@ jobs:
           script: |
             const repo = '${{ matrix.repo }}';
 
+            // Extract step outputs into JS variables to avoid ${{}} vs ${} template literal conflicts
+            const scanNeeded = '${{ steps.scan.outputs.issue_needed }}';
+            const foundFiles = `${{ steps.scan.outputs.found_files }}`;
+            const hasLargeFiles = '${{ steps.filesize.outputs.has_large_files }}';
+            const largeFiles = `${{ steps.filesize.outputs.large_files }}`;
+            const hasHistoryFiles = '${{ steps.history.outputs.has_history_files }}';
+            const historyFiles = `${{ steps.history.outputs.history_files }}`;
+            const httpsOk = '${{ steps.https.outputs.https_ok }}';
+            const hasExternalScripts = '${{ steps.external.outputs.has_external_scripts }}';
+            const externalScripts = `${{ steps.external.outputs.external_scripts }}`;
+
             let issueBody = `## 🔒 Security Scan Results\n\n**Repository:** ${repo}\n**Branch:** gh-pages\n**Scan Date:** ${new Date().toISOString()}\n\n`;
 
             // Sensitive files
-            if ('${{ steps.scan.outputs.issue_needed }}' === 'true') {
-              issueBody += `### ⚠️ Sensitive Files Found\n\n$\{{ steps.scan.outputs.found_files }}\n\n`;
+            if (scanNeeded === 'true') {
+              issueBody += `### ⚠️ Sensitive Files Found\n\n${foundFiles}\n\n`;
               issueBody += `**Action:** Remove these files from gh-pages branch\n\n`;
             }
 
             // Large files
-            if ('${{ steps.filesize.outputs.has_large_files }}' === 'true') {
-              issueBody += `### 📦 Large Files (>10MB)\n\n$\{{ steps.filesize.outputs.large_files }}\n\n`;
+            if (hasLargeFiles === 'true') {
+              issueBody += `### 📦 Large Files (>10MB)\n\n${largeFiles}\n\n`;
               issueBody += `**Action:** Consider removing or optimizing large files\n\n`;
             }
 
             // Git history
-            if ('${{ steps.history.outputs.has_history_files }}' === 'true') {
-              issueBody += `### 📜 Sensitive Files in Git History\n\n$\{{ steps.history.outputs.history_files }}\n\n`;
+            if (hasHistoryFiles === 'true') {
+              issueBody += `### 📜 Sensitive Files in Git History\n\n${historyFiles}\n\n`;
               issueBody += `**Warning:** These files were deleted but still exist in Git history. Consider using \`git filter-branch\` or BFG Repo-Cleaner to remove them permanently.\n\n`;
             }
 
             // HTTPS check
-            if ('${{ steps.https.outputs.https_ok }}' === 'false') {
+            if (httpsOk === 'false') {
               issueBody += `### 🔐 HTTPS Issue\n\n`;
               issueBody += `HTTPS is not accessible for this repository. Check GitHub Pages settings.\n\n`;
             }
 
             // External scripts (informational)
-            if ('${{ steps.external.outputs.has_external_scripts }}' === 'true') {
-              issueBody += `### 🌐 External Scripts Detected (Informational)\n\n$\{{ steps.external.outputs.external_scripts }}\n\n`;
+            if (hasExternalScripts === 'true') {
+              issueBody += `### 🌐 External Scripts Detected (Informational)\n\n${externalScripts}\n\n`;
               issueBody += `**Note:** External scripts are not necessarily a security risk, but review them to ensure they're from trusted sources.\n\n`;
             }
 
@@ -258,11 +269,11 @@ jobs:
               owner: 'S540d',
               repo: 'S540d.github.io',
               state: 'open',
-              labels: ['security', 'gh-pages']
+              labels: ['security', 'gh-pages', 'automated']
             });
 
             const existingIssue = issues.data.find(issue =>
-              issue.title.includes(repo) && issue.title.includes('Sensitive files')
+              issue.title.includes(repo) && issue.title.includes('Security Scan')
             );
 
             if (!existingIssue) {
@@ -276,12 +287,12 @@ jobs:
               });
               console.log(`✅ Created security issue for ${repo}`);
             } else {
-              // Update existing issue
+              // Update existing issue with a comment instead of creating a duplicate
               await github.rest.issues.createComment({
                 owner: 'S540d',
                 repo: 'S540d.github.io',
                 issue_number: existingIssue.number,
-                body: `🔄 **Update:** Sensitive files still present as of ${new Date().toISOString()}\n\n${foundFiles}`
+                body: `🔄 **Update:** Sensitive files still present as of ${new Date().toISOString()}\n\n${issueBody}`
               });
               console.log(`✅ Updated existing security issue #${existingIssue.number} for ${repo}`);
             }
