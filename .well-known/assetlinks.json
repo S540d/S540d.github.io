@@ -51,18 +51,5 @@
         "C9:96:35:2A:6B:07:EE:38:23:13:9B:6B:5E:8C:B5:07:8D:2F:06:C6:B3:E3:30:2E:B5:50:33:F6:3F:D4:EB:56"
       ]
     }
-  },
-  {
-    "relation": [
-      "delegate_permission/common.handle_all_urls",
-      "delegate_permission/common.get_login_creds"
-    ],
-    "target": {
-      "namespace": "android_app",
-      "package_name": "com.s540d.merkeundmale",
-      "sha256_cert_fingerprints": [
-        "E2:F6:B9:35:8A:D9:D6:49:41:89:C6:E3:34:FD:55:8E:A0:31:9C:0D:44:57:A5:CA:ED:07:43:86:C1:31:0E:58"
-      ]
-    }
   }
 ]
