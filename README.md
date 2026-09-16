@@ -1,16 +1,21 @@
 # S540d.github.io
 
-GitHub Pages Root-Repository für Android App Links Verifizierung.
+GitHub Pages Root-Repository für Android App Links Verifizierung und das
+zentrale Impressum aller Projekte.
 
 ## Zweck
 
-Dieses Repository hostet die `.well-known/assetlinks.json` Datei für alle Android Apps unter der Domain `s540d.github.io`.
+Dieses Repository hostet:
+
+- die `.well-known/assetlinks.json` Datei für alle Android Apps unter der Domain `s540d.github.io`
+- die zentrale `impressum.html`, auf die der „Über"-Abschnitt jedes Web-Projekts verlinkt (siehe [project-templates/dev-standards/about-section.md](https://github.com/S540d/project-templates/blob/main/dev-standards/about-section.md))
 
 Android App Links ermöglichen es, dass beim Klicken auf einen Website-Link automatisch die App geöffnet wird (falls installiert), statt des Browsers.
 
-## Live URL
+## Live URLs
 
-**https://s540d.github.io/.well-known/assetlinks.json**
+- **Impressum:** https://s540d.github.io/impressum.html
+- **Android App Links:** https://s540d.github.io/.well-known/assetlinks.json
 
 ## Verifizierte Apps
 
@@ -31,11 +36,18 @@ Android App Links ermöglichen es, dass beim Klicken auf einen Website-Link auto
 ## Struktur
 
 ```
+impressum.html    # Zentrales Impressum, verlinkt von jedem Projekt
 .well-known/
   assetlinks.json  # Android App Links Verifizierung
 .nojekyll          # GitHub Pages: dotfiles nicht ignorieren
 README.md          # Diese Datei
 ```
+
+## Impressum aktualisieren
+
+`impressum.html` enthält alle Pflichtangaben nach §5 TMG als reines,
+framework-loses HTML. Bearbeiten und committen genügt — GitHub Pages
+deployed automatisch.
 
 ## SHA-256 Fingerprint aktualisieren
 
