@@ -48,6 +48,14 @@ jobs:
             ".env.staging"
             ".env.testing"
             "*.jks"
+            "*.keystore"
+            "*.pem"
+            "*.p12"
+            "google-services.json"
+            "GoogleService-Info.plist"
+            "local.properties"
+            ".claude/"
+            ".cursor/"
             ".vscode/"
             ".husky/"
             "coverage/"
@@ -110,7 +118,7 @@ jobs:
           echo "Scanning Git history for deleted sensitive files..."
 
           SENSITIVE_IN_HISTORY=$(git log --all --pretty=format: --name-only --diff-filter=D | \
-            grep -E '(credentials\.json|\.env|\.jks|node_modules/)' | \
+            grep -E '(credentials\.json|\.env|\.jks|\.keystore|\.p12|\.pem)$' | \
             sort -u | head -20 || true)
 
           if [ -n "$SENSITIVE_IN_HISTORY" ]; then
@@ -295,6 +303,49 @@ jobs:
                 body: `🔄 **Update:** Security scan still reports issues as of ${new Date().toISOString()}\n\n${issueBody}`
               });
               console.log(`✅ Updated existing security issue #${existingIssue.number} for ${repo}`);
+            }
+
+      - name: Write findings to step summary
+        if: always()
+        run: |
+          {
+            echo "### ${{ matrix.repo }}"
+            if [ "${{ steps.final.outputs.issue_needed }}" == "true" ]; then
+              echo "❌ Findings:"
+              echo ""
+              echo '${{ toJSON(steps.scan.outputs.found_files) }}'
+              echo '${{ toJSON(steps.filesize.outputs.large_files) }}'
+              echo '${{ toJSON(steps.history.outputs.history_files) }}'
+              [ "${{ steps.https.outputs.https_ok }}" == "false" ] && echo "- HTTPS not accessible"
+            else
+              echo "✅ clean"
+            fi
+            echo ""
+          } >> $GITHUB_STEP_SUMMARY || true
+
+      - name: Close resolved issue
+        if: steps.final.outputs.issue_needed == 'false'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const repo = '${{ matrix.repo }}';
+            const issues = await github.rest.issues.listForRepo({
+              owner: 'S540d',
+              repo: 'S540d.github.io',
+              state: 'open',
+              labels: ['security', 'automated']
+            });
+            for (const issue of issues.data.filter(i => i.title.includes(repo) && i.title.includes('Security Scan'))) {
+              await github.rest.issues.createComment({
+                owner: 'S540d', repo: 'S540d.github.io', issue_number: issue.number,
+                body: '✅ Scan ist wieder sauber, Issue wird automatisch geschlossen.'
+              });
+              await github.rest.issues.update({
+                owner: 'S540d', repo: 'S540d.github.io', issue_number: issue.number,
+                state: 'closed', state_reason: 'completed'
+              });
+              console.log(`Closed #${issue.number} for ${repo}`);
             }
 
   summary:

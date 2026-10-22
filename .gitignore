@@ -1,0 +1,11 @@
+.claude/
+.cursor/
+.vscode/
+.idea/
+.DS_Store
+node_modules/
+.env*
+*.jks
+*.keystore
+*.pem
+*.p12
