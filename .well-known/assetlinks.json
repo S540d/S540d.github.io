@@ -51,5 +51,18 @@
         "C9:96:35:2A:6B:07:EE:38:23:13:9B:6B:5E:8C:B5:07:8D:2F:06:C6:B3:E3:30:2E:B5:50:33:F6:3F:D4:EB:56"
       ]
     }
+  },
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "om.sven4321.calibratemytelescope",
+      "sha256_cert_fingerprints": [
+        "C6:7C:C9:FC:F6:32:CE:A3:4B:10:1F:AB:03:60:E9:6F:F6:B6:FB:21:85:32:32:9F:E0:10:CA:72:79:CD:38:8F"
+      ]
+    }
   }
 ]
