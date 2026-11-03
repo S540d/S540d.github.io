@@ -10,7 +10,7 @@ Zentraler Security-Monitoring-Workflow, der alle S540d GitHub Pages Projekte auf
 
 ## Überwachte Repositories
 
-1x1_Trainer, Energy_Price_Germany, Eisenhauer — neue Projekte in `.github/workflows/security-monitor.yml` (matrix.repo) ergänzen.
+1x1_Trainer, Energy_Price_Germany, Eisenhauer, Pflanzkalender — neue Projekte in `.github/workflows/security-monitor.yml` (matrix.repo) ergänzen.
 
 ## Bei einer Warnung
 
