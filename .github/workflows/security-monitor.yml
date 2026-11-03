@@ -21,7 +21,11 @@ jobs:
           - Energy_Price_Germany
           - Eisenhauer
           - Pflanzkalender
+          - DrawFromMemory
           # Add more repos here as needed
+          # Only repos that deploy via a gh-pages branch — Actions-artifact
+          # deployments (e.g. safe-my-plants) have nothing to check out here,
+          # see SECURITY_MONITORING.md
 
     steps:
       - name: Checkout ${{ matrix.repo }} gh-pages
@@ -377,3 +381,4 @@ jobs:
           echo "- Energy_Price_Germany" >> $GITHUB_STEP_SUMMARY
           echo "- Eisenhauer" >> $GITHUB_STEP_SUMMARY
           echo "- Pflanzkalender" >> $GITHUB_STEP_SUMMARY
+          echo "- DrawFromMemory" >> $GITHUB_STEP_SUMMARY
