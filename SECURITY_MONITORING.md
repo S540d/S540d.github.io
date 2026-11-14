@@ -46,6 +46,14 @@ Aktuell werden folgende Projekte überwacht:
 - ✅ 1x1_Trainer
 - ✅ Energy_Price_Germany
 - ✅ Eisenhauer
+- ✅ Pflanzkalender
+- ✅ DrawFromMemory
+
+### Bewusst nicht überwacht
+
+- **safe-my-plants** — deployt per GitHub-Actions-Artefakt (`actions/upload-pages-artifact` mit `path: dist`, `build_type: workflow`), es gibt keinen `gh-pages`-Branch. Der Monitor checkt fest `ref: gh-pages` aus (mit `continue-on-error`), ein Eintrag würde also still nichts prüfen. Veröffentlicht wird ausschließlich der `expo export`-Output aus `dist/`; Quellcode-Dateien wie `node_modules/`, `.env*` oder Keystores können dort nicht hineingeraten. Das Quell-Repo selbst wird durch dessen eigenen `security-scan.yml` (Secret-Scan) abgedeckt.
+
+Gilt sinngemäß für jedes weitere Projekt mit Actions-Deployment: nicht in `matrix.repo` aufnehmen, sondern hier eintragen.
 
 ### Neues Projekt hinzufügen
 
@@ -58,7 +66,9 @@ strategy:
       - 1x1_Trainer
       - Energy_Price_Germany
       - Eisenhauer
-      - NeuesProjekt  # <-- Hier hinzufügen
+      - Pflanzkalender
+      - DrawFromMemory
+      - NeuesProjekt  # <-- Hier hinzufügen (nur mit gh-pages-Branch)
 ```
 
 ## Was tun bei einer Warnung?
